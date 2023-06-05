@@ -2234,6 +2234,85 @@ within:
     isVisible(el) {
       return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length > 0);
     },
+    loadExtension(extension) {
+      if (extension["jsExtension"]) {
+        let sentinel = true;
+        let loaded = [];
+        let js_extension = extension.jsExtension;
+        if (typeof js_extension === "function") {
+          if (js_extension.length === 0) {
+            js_extension = js_extension();
+          } else if (js_extension.length === 1) {
+            js_extension = js_extension(version);
+          } else {
+            sentinel = false;
+            console.warn(`Unable to load extension, js_extension has arity > 1 and is not supported by this version of JS.`);
+          }
+        }
+        if (sentinel) {
+          if (typeof js_extension === "object" && js_extension instanceof Map) {
+            if (js_extension.has("version") && typeof js_extension.get("version") === "string") {
+              if (js_extension.get("version").startsWith("0.18")) {
+                if (js_extension.has("methods") && typeof js_extension.get("methods") === "object" && js_extension.get("methods") instanceof Map) {
+                  let methods = js_extension.get("methods");
+                  const expectedProperties = ["method"];
+                  methods.forEach((settings, extension2) => {
+                    if (typeof settings === "object" && expectedProperties.every((property) => settings.hasOwnProperty(property))) {
+                      if (typeof extension2 === "string" && typeof settings["method"] === "function") {
+                        if (!this.hasOwnProperty(extension2)) {
+                        } else if (!settings["override"]) {
+                          console.log(`Warning unable to load JS method extension '${extension2}', JS already defines '${extension2}'`);
+                        }
+                      } else {
+                        sentinel = false;
+                        console.warn("js_extension.methods contains malformed entries. each extension must be a plain dict {extension: string, method: function} ");
+                      }
+                    } else if (typeof settings === "function") {
+                    } else {
+                      sentinel = false;
+                      console.warn("js_extension.methods contains malformed entries. each extension must be a plain dict {extension: string, method: function} ");
+                    }
+                  });
+                  if (sentinel) {
+                    methods.forEach((settings, extension2) => {
+                      let method = null;
+                      let override = false;
+                      if (typeof settings === "function") {
+                        method = settings;
+                      } else if (typeof settings["method"] === "function") {
+                        method = settings["method"];
+                        override = settings["override"] || false;
+                      }
+                      if (!this.hasOwnProperty(extension2) || override) {
+                        this[extension2] = method;
+                        loaded.push(extension2);
+                      }
+                    });
+                    if (loaded.length > 0) {
+                      console.log("js_extension.methods loaded", loaded);
+                    } else {
+                      console.warn("js_extension.methods no extensions applied.");
+                    }
+                  }
+                } else {
+                  sentinel = false;
+                  console.warn(`Unable to load extension, js_extension.methods not a map of extension methods to apply.`);
+                }
+              } else {
+                sentinel = false;
+                console.warn(`Unable to load extension, js_extension not targeting 0.18.X live view.`);
+              }
+            } else {
+              sentinel = false;
+              console.warn(`Unable to load extension, js_extension did not include version details.`);
+            }
+          } else {
+            sentinel = false;
+            console.warn(`Unable to load extension, js_extension did not return a map.`);
+          }
+        }
+      }
+    },
     exec_exec(eventType, phxEvent, view, sourceEl, el, [attr, to]) {
       let nodes = to ? dom_default.all(document, to) : [sourceEl];
       nodes.forEach((node) => {
@@ -3535,6 +3614,9 @@ within:
           window.location.reload();
         }
       });
+    }
+    loadExtension(extension) {
+      js_default.loadExtension(extension);
     }
     isProfileEnabled() {
       return this.sessionStorage.getItem(PHX_LV_PROFILE) === "true";

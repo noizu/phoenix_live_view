@@ -24,3 +24,6 @@ phoenix_live_view-*.tar
 
 node_modules
 
+# Ignore intellij projects
+phoenix_live_view.iml
+.idea/

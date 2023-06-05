@@ -23,6 +23,99 @@ let JS = {
     return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length > 0)
   },
 
+
+  // Plugin Support to allow developers to load and test extensions before preparing a formal Pull Request to modify base.
+  // Or to load project specific extensions that do not require merging into main project.
+  loadExtension(extension) {
+    if (extension['jsExtension']) {
+      let sentinel = true;
+      let loaded = [];
+      let js_extension = extension.jsExtension;
+      // Support methods here to allow for extensions that load multiple sub extensions for us.
+      if (typeof js_extension === 'function') {
+        if (js_extension.length === 0) {
+          js_extension = js_extension();
+        } else if (js_extension.length === 1) {
+          js_extension = js_extension(version);
+        } else {
+          sentinel = false;
+          console.warn(`Unable to load extension, js_extension has arity > 1 and is not supported by this version of JS.`)
+        }
+      }
+      if (sentinel) {
+        if (typeof js_extension === 'object' && js_extension instanceof Map) {
+          if (js_extension.has('version') && typeof js_extension.get('version') === 'string') {
+            if (js_extension.get('version').startsWith('0.18')) {
+              if (js_extension.has('methods') && typeof js_extension.get('methods') === 'object' && js_extension.get('methods') instanceof Map) {
+                let methods = js_extension.get('methods');
+                const expectedProperties = ['method'];
+                methods.forEach((settings, extension) => {
+                  if (
+                      (typeof settings === 'object' &&
+                          expectedProperties.every(property => settings.hasOwnProperty(property)))
+                  ) {
+                    if (typeof extension === 'string' && typeof settings['method'] === 'function' ) {
+                      if (!this.hasOwnProperty(extension)) {
+                        // okay
+                      } else if (!settings['override']) {
+                        console.log(`Warning unable to load JS method extension '${extension}', JS already defines '${extension}'`);
+                      }
+                    } else {
+                      sentinel = false;
+                      console.warn('js_extension.methods contains malformed entries. each extension must be a plain dict {extension: string, method: function} ')
+                    }
+                  } else if (typeof settings === 'function') {
+                    // okay
+                  } else {
+                    sentinel = false;
+                    console.warn('js_extension.methods contains malformed entries. each extension must be a plain dict {extension: string, method: function} ')
+
+                  }
+                });
+
+
+                if (sentinel) {
+                  methods.forEach((settings, extension) => {
+                    let method = null;
+                    let override = false;
+                    if (typeof settings === 'function') {
+                      method = settings;
+                    } else if  (typeof settings['method'] === 'function') {
+                      method = settings['method'];
+                      override = settings['override'] || false;
+                    }
+                    if (!this.hasOwnProperty(extension) || override) {
+                      this[extension] = method;
+                      loaded.push(extension);
+                    }
+                  });
+                  if (loaded.length > 0) {
+                    console.log("js_extension.methods loaded", loaded)
+                  } else {
+                    console.warn("js_extension.methods no extensions applied.")
+                  }
+                }
+
+              } else {
+                sentinel = false;
+                console.warn(`Unable to load extension, js_extension.methods not a map of extension methods to apply.`)
+              }
+            } else {
+              sentinel = false;
+              console.warn(`Unable to load extension, js_extension not targeting 0.18.X live view.`)
+            }
+          } else {
+            sentinel = false;
+            console.warn(`Unable to load extension, js_extension did not include version details.`)
+          }
+        } else {
+          sentinel = false;
+          console.warn(`Unable to load extension, js_extension did not return a map.`)
+        }
+      }
+    }
+  },
+
   // private
 
   // commands

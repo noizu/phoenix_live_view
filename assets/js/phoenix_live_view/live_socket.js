@@ -171,6 +171,10 @@ export default class LiveSocket {
   }
 
   // public
+  loadExtension(extension) {
+    // In the future other components besides JS may be supported.
+    JS.loadExtension(extension);
+  }
 
   isProfileEnabled(){ return this.sessionStorage.getItem(PHX_LV_PROFILE) === "true" }
 
